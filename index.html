@@ -2667,14 +2667,9 @@
             const supabaseUrl = 'https://phobduzocavbbobbnvos.supabase.co';
             const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBob2JkdXpvY2F2YmJvYmJudm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTk2NDksImV4cCI6MjA4ODIzNTY0OX0.e-84J7ce1-zomLJn0KEMMiDM79tn8ba0Cji0gxIpck8';
             try {
-                const res = await fetch(`${supabaseUrl}/rest/v1/pedidos`, {
+                await fetch('https://n8n.srv1306548.hstgr.cloud/webhook/lymsushi-pedido', {
                     method: 'POST',
-                    headers: {
-                        'apikey': supabaseKey,
-                        'Authorization': `Bearer ${supabaseKey}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nombre: name,
                         telefono: phone,
@@ -2686,14 +2681,8 @@
                         total: finalTotal
                     })
                 });
-                if (!res.ok) {
-                    const errText = await res.text();
-                    console.log('Supabase error:', res.status, errText);
-                } else {
-                    console.log('Pedido guardado en Supabase ✓');
-                }
             } catch (e) {
-                console.log('Supabase error:', e);
+                console.log('Error guardando pedido:', e);
             }
 
             // Show success overlay
