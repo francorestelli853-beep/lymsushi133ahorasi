@@ -187,6 +187,11 @@
             border-color: var(--secondary);
             transform: translateY(-1px);
         }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
         .btn-outline {
             background: transparent;
             color: #ffffff;
@@ -713,7 +718,7 @@
                     <label>Aclaraciones / Alergias</label>
                     <textarea id="order-notes" class="form-control" placeholder="Ej: Sin wasabi, alergia al sésamo, etc."></textarea>
                 </div>
-                <button class="btn-primary btn-block" onclick="submitOrder()">
+                <button id="btn-confirmar" class="btn-primary btn-block" onclick="submitOrder()">
                     Confirmar Pedido
                 </button>
             </div>
@@ -757,6 +762,7 @@
     </div>
 
     <script>
+        // ── Datos del menú ──
         const menuData = {
             combos: [
                 { id: 'c2', name: 'Combo Express 1', desc: '30 piezas salmón y langostino', price: 35000 },
@@ -849,17 +855,34 @@
             ]
         };
 
+        // ── Estado global ──
         let cart = [];
+        let isSubmitting = false; // ← FLAG ANTI-DUPLICADOS
+
         const formatPrice = (price) => '$' + price.toLocaleString('es-AR');
 
+        // ── Supabase config ──
+        const SUPABASE_URL = 'https://phobduzocavbbobbnvos.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBob2JkdXpvY2F2YmJvYmJudm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTk2NDksImV4cCI6MjA4ODIzNTY0OX0.e-84J7ce1-zomLJn0KEMMiDM79tn8ba0Cji0gxIpck8';
+
+        // ── Init (un solo DOMContentLoaded) ──
         document.addEventListener('DOMContentLoaded', () => {
             renderCombos();
             renderMenu();
             updateCartDisplay();
             toggleOrderFields();
+
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('reserva-date').min = today;
             document.getElementById('reserva-date').value = today;
+
+            // Scroll reveal observer
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) entry.target.classList.add('active');
+                });
+            }, { root: null, rootMargin: '0px', threshold: 0.15 });
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
         });
 
         function toggleMenu() {
@@ -1025,7 +1048,7 @@
 
         function updateTotals() {
             const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const paymentMethod = document.getElementById('payment-method').value;
+            const paymentMethod = document.getElementById('payment-method') ? document.getElementById('payment-method').value : 'efectivo';
             let discountAmount = 0;
             let finalTotal = subtotal;
             document.getElementById('cart-subtotal').textContent = formatPrice(subtotal);
@@ -1050,12 +1073,11 @@
             document.getElementById('field-reserva').classList.toggle('active', type === 'reserva');
         }
 
-        // ── Supabase config ──
-        const SUPABASE_URL = 'https://phobduzocavbbobbnvos.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBob2JkdXpvY2F2YmJvYmJudm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTk2NDksImV4cCI6MjA4ODIzNTY0OX0.e-84J7ce1-zomLJn0KEMMiDM79tn8ba0Cji0gxIpck8';
-
-        // ── Form Submit ── (FIXED: now actually calls Supabase)
+        // ── Submit del pedido (con protección anti-duplicados) ──
         async function submitOrder() {
+            // ── BLOQUEO: si ya se está enviando, ignorar click extra ──
+            if (isSubmitting) return;
+
             const name = document.getElementById('order-name').value.trim();
             const phone = document.getElementById('order-phone').value.trim();
             const type = document.getElementById('order-type').value;
@@ -1065,6 +1087,13 @@
                 return;
             }
 
+            // ── Activar estado de envío ──
+            isSubmitting = true;
+            const submitBtn = document.getElementById('btn-confirmar');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Enviando...';
+
+            // ── Armar mensaje WhatsApp ──
             let msg = `*NUEVO PEDIDO LYM SUSHI*\n\n`;
             msg += `*Nombre:* ${name}\n`;
             msg += `*Teléfono:* ${phone}\n`;
@@ -1074,7 +1103,13 @@
 
             if (type === 'delivery') {
                 address = document.getElementById('order-address').value.trim();
-                if (!address) { alert('Por favor, ingresá la dirección de envío.'); return; }
+                if (!address) {
+                    alert('Por favor, ingresá la dirección de envío.');
+                    isSubmitting = false;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Confirmar Pedido';
+                    return;
+                }
                 msg += `*Tipo:* Delivery\n`;
                 msg += `*Dirección:* ${address}\n`;
             } else if (type === 'takeaway') {
@@ -1089,7 +1124,13 @@
                 const date = document.getElementById('reserva-date').value;
                 const time = document.getElementById('reserva-time').value;
                 const people = document.getElementById('reserva-people').value;
-                if (!date || !time || !people) { alert('Por favor, completá todos los datos de la reserva.'); return; }
+                if (!date || !time || !people) {
+                    alert('Por favor, completá todos los datos de la reserva.');
+                    isSubmitting = false;
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Confirmar Pedido';
+                    return;
+                }
                 msg += `*Tipo:* Reserva en Salón\n`;
                 msg += `*Sucursal:* ${branch}\n`;
                 msg += `*Fecha:* ${date}\n`;
@@ -1122,7 +1163,7 @@
             const notes = document.getElementById('order-notes').value.trim();
             if (notes) { msg += `\n*Aclaraciones:* ${notes}\n`; }
 
-            // ── GUARDAR EN SUPABASE (fix principal) ──
+            // ── GUARDAR EN SUPABASE (una sola vez) ──
             try {
                 const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/pedidos`, {
                     method: 'POST',
@@ -1153,7 +1194,7 @@
                 console.error('Supabase save failed (network):', e);
             }
 
-            // ── WEBHOOK N8N (secundario, no bloquea) ──
+            // ── WEBHOOK N8N (no bloquea el flujo) ──
             try {
                 await fetch('https://n8n.srv1306548.hstgr.cloud/webhook/lymsushi-pedido', {
                     method: 'POST',
@@ -1186,6 +1227,12 @@
             document.getElementById('order-notes').value = '';
             showCartView();
 
+            // ── Liberar lock DESPUÉS de limpiar todo ──
+            isSubmitting = false;
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Confirmar Pedido';
+
+            // ── Abrir WhatsApp ──
             const encodedMsg = encodeURIComponent(msg);
             window.open(`https://wa.me/${phoneTarget}?text=${encodedMsg}`, '_blank');
         }
@@ -1225,13 +1272,6 @@
             if (input.includes('delivery') || input.includes('zona') || input.includes('envio')) return 'Hacemos delivery a todo Maschwitz, Loma Verde, Garín y alrededores. El envío se coordina por WhatsApp.';
             return 'Disculpá, no entendí tu consulta. Contactanos por WhatsApp: Maschwitz al <a href="https://wa.me/5491123135966" style="color:var(--secondary)">11-2313-5966</a> o Loma Verde al <a href="https://wa.me/5491159274543" style="color:var(--secondary)">11-5927-4543</a>. 🍣';
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('active'); });
-            }, { root: null, rootMargin: '0px', threshold: 0.15 });
-            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-        });
     </script>
 </body>
 </html>
