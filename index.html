@@ -857,7 +857,7 @@
 
         // ── Estado global ──
         let cart = [];
-        let isSubmitting = false; // ← FLAG ANTI-DUPLICADOS
+        let isSubmitting = false;
 
         const formatPrice = (price) => '$' + price.toLocaleString('es-AR');
 
@@ -865,7 +865,7 @@
         const SUPABASE_URL = 'https://phobduzocavbbobbnvos.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBob2JkdXpvY2F2YmJvYmJudm9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2NTk2NDksImV4cCI6MjA4ODIzNTY0OX0.e-84J7ce1-zomLJn0KEMMiDM79tn8ba0Cji0gxIpck8';
 
-        // ── Init (un solo DOMContentLoaded) ──
+        // ── Init ──
         document.addEventListener('DOMContentLoaded', () => {
             renderCombos();
             renderMenu();
@@ -876,7 +876,6 @@
             document.getElementById('reserva-date').min = today;
             document.getElementById('reserva-date').value = today;
 
-            // Scroll reveal observer
             const observer = new IntersectionObserver((entries) => {
                 entries.forEach(entry => {
                     if (entry.isIntersecting) entry.target.classList.add('active');
@@ -1073,9 +1072,8 @@
             document.getElementById('field-reserva').classList.toggle('active', type === 'reserva');
         }
 
-        // ── Submit del pedido (con protección anti-duplicados) ──
+        // ── Submit del pedido ──
         async function submitOrder() {
-            // ── BLOQUEO: si ya se está enviando, ignorar click extra ──
             if (isSubmitting) return;
 
             const name = document.getElementById('order-name').value.trim();
@@ -1086,6 +1084,10 @@
                 alert('Por favor, completá tu nombre y teléfono.');
                 return;
             }
+
+            // ── CRÍTICO: abrir ventana de WhatsApp ANTES de cualquier await ──
+            // En mobile, window.open() después de un await es bloqueado como popup
+            const waWindow = window.open('', '_blank');
 
             // ── Activar estado de envío ──
             isSubmitting = true;
@@ -1108,6 +1110,7 @@
                     isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Confirmar Pedido';
+                    waWindow.close();
                     return;
                 }
                 msg += `*Tipo:* Delivery\n`;
@@ -1129,6 +1132,7 @@
                     isSubmitting = false;
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Confirmar Pedido';
+                    waWindow.close();
                     return;
                 }
                 msg += `*Tipo:* Reserva en Salón\n`;
@@ -1163,7 +1167,7 @@
             const notes = document.getElementById('order-notes').value.trim();
             if (notes) { msg += `\n*Aclaraciones:* ${notes}\n`; }
 
-            // ── GUARDAR EN SUPABASE (una sola vez) ──
+            // ── GUARDAR EN SUPABASE ──
             try {
                 const supaRes = await fetch(`${SUPABASE_URL}/rest/v1/pedidos`, {
                     method: 'POST',
@@ -1194,7 +1198,7 @@
                 console.error('Supabase save failed (network):', e);
             }
 
-            // ── WEBHOOK N8N (no bloquea el flujo) ──
+            // ── WEBHOOK N8N ──
             try {
                 await fetch('https://n8n.srv1306548.hstgr.cloud/webhook/lymsushi-pedido', {
                     method: 'POST',
@@ -1227,14 +1231,13 @@
             document.getElementById('order-notes').value = '';
             showCartView();
 
-            // ── Liberar lock DESPUÉS de limpiar todo ──
             isSubmitting = false;
             submitBtn.disabled = false;
             submitBtn.textContent = 'Confirmar Pedido';
 
-            // ── Abrir WhatsApp ──
+            // ── REDIRIGIR LA VENTANA YA ABIERTA A WHATSAPP ──
             const encodedMsg = encodeURIComponent(msg);
-            window.open(`https://wa.me/${phoneTarget}?text=${encodedMsg}`, '_blank');
+            waWindow.location.href = `https://wa.me/${phoneTarget}?text=${encodedMsg}`;
         }
 
         function closeSuccess() { document.getElementById('success-overlay').classList.remove('active'); }
